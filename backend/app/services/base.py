@@ -80,10 +80,10 @@ class BaseModuleService:
         if target is None:
             return None, f"动作「{action}」不属于{self.MODULE}可执行范围"
         entry["status"] = target
+        # 进入状态机末态后不再属于待处理；其余中间态保持待处理
         entry["pending"] = target != self.STATUS_ORDER[-1]
         entry["abnormal"] = action in self.NEGATIVE_ACTIONS
         return entry, f"{self.ENTITY}已{action}"
-
     def domain_snapshot(self) -> dict[str, Any]:
         """输出模块级数据质量快照，供跨模块消费和题位源码锚点使用。"""
         rows = store.rows(self.MODULE)
@@ -108,7 +108,7 @@ class BaseModuleService:
         return p
 
     def _write_jsonl(self, filepath: Path, records: list[dict[str, Any]]) -> int:
-        """将记录列表按行写入 JSONL 文件，返回实际写入条数。"""
+        """将记录列表按行追加写入 JSONL 文件，返回实际写入条数。"""
         _ensure_dir(filepath.parent)
         written = 0
         with open(filepath, "a", encoding="utf-8") as f:
@@ -116,6 +116,18 @@ class BaseModuleService:
                 f.write(json.dumps(rec, ensure_ascii=False, default=str) + "\n")
                 written += 1
         return written
+
+    def _overwrite_jsonl(self, filepath: Path, records: list[dict[str, Any]]) -> int:
+        """全量覆盖写入 JSONL 文件，用于"读-改-写回"的登记表（如观测状态、补签台账）。
+
+        与 _write_jsonl 的追加语义不同：这里必须用写模式打开，
+        否则每次更新都会把存量记录再追加一遍，造成贡献重复累计。
+        """
+        _ensure_dir(filepath.parent)
+        with open(filepath, "w", encoding="utf-8") as f:
+            for rec in records:
+                f.write(json.dumps(rec, ensure_ascii=False, default=str) + "\n")
+        return len(records)
 
     def _read_jsonl(self, filepath: Path) -> list[dict[str, Any]]:
         """从 JSONL 文件逐行读取记录列表，用于跨模块共享数据产物。"""

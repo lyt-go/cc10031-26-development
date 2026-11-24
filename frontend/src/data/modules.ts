@@ -200,6 +200,17 @@ export const MODULES: ModuleMeta[] = [
     actionTargets: {"提交确认": "待确认", "发布快照": "已发布", "标记归档": "已归档"},
     metrics: ["版本快照总数", "待确认快照", "已发布快照"],
   },
+  {
+    key: "shift_handover",
+    name: "班次交接",
+    entity: "班次交接",
+    desc: "按归并窗口组织班次交接与交接号发布，支持迟到观测补签且不损坏首签记录。",
+    fields: ["交接号", "班次", "测点范围", "首签窗口", "首签合计", "已补签窗口", "补签贡献", "交接状态", "交接时间"],
+    statuses: ["待确认", "已交接", "已补签"],
+    actions: ["确认交接", "完成补签"],
+    actionTargets: {"确认交接": "已交接", "完成补签": "已补签"},
+    metrics: ["交接单总数", "待确认交接", "已补签交接"],
+  },
 ]
 
 export const MODULE_BY_KEY: Map<string, ModuleMeta> = new Map(

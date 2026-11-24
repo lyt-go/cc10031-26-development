@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from app.services.base import BaseModuleService
+from app.services.rollup_window import _is_number
 from app.store import store
 
 
@@ -30,19 +31,22 @@ class SeriesSnapshotService(BaseModuleService):
         point_range = snap.get("测点范围", "")
         time_range = snap.get("时间范围", "")
 
-        # 扫描归并结果作为快照数据源
+        # 扫描归并结果作为快照数据源；没有合格观测的窗口不会产出零值记录，
+        # 快照不得把"无观测/质检未结束"当成数值零写入合计。
         snapshot_data = []
         rollup_dir = self._data_dir("rollup_windows")
         if rollup_dir.exists():
             for f in rollup_dir.glob("*_rollup.jsonl"):
                 records = self._read_jsonl(f)
                 for r in records:
+                    if not _is_number(r.get("rollup_value")):
+                        continue
                     snapshot_data.append({
                         "snapshot_id": snap["快照编号"],
                         "caliber": caliber,
                         "point": r.get("point", ""),
                         "window_index": r.get("window_start", 0),
-                        "rollup_value": r.get("rollup_value", 0),
+                        "rollup_value": r.get("rollup_value"),
                         "metric": r.get("metric", ""),
                     # 数据归档输出：将已发布快照归档到冷区存储写入快照归档日志文件
                     })
@@ -52,26 +56,30 @@ class SeriesSnapshotService(BaseModuleService):
             for f in ds_dir.glob("*_downsampled.jsonl"):
                 records = self._read_jsonl(f)
                 for r in records:
+                    if not _is_number(r.get("aggregated_value")):
+                        continue
                     snapshot_data.append({
                         "snapshot_id": snap["快照编号"],
                         "caliber": caliber,
                         "point": r.get("point", ""),
                         "window_index": r.get("window_index", 0),
-                        "aggregated_value": r.get("aggregated_value", 0),
+                        "aggregated_value": r.get("aggregated_value"),
                         "method": r.get("method", ""),
                     })
-        # 也包含质检通过的数据
+        # 也包含质检通过的数据；质检未完成时不存在结论记录，不会以零值占位
         quality_dir = self._data_dir("quality_reports")
         if quality_dir.exists():
             for f in quality_dir.glob("*_quality.jsonl"):
                 records = self._read_jsonl(f)
                 for r in records:
+                    if not _is_number(r.get("completeness")):
+                        continue
                     snapshot_data.append({
                         "snapshot_id": snap["快照编号"],
                         "caliber": caliber,
                         "quality_check_point": r.get("point", ""),
                         "conclusion": r.get("conclusion", ""),
-                        "completeness": r.get("completeness", 0),
+                        "completeness": r.get("completeness"),
                     })
 
         # 将快照数据写入序列版本快照归档文件
